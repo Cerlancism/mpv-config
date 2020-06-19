@@ -114,4 +114,3 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
         mp.utils.write_file("file://" + target, output)
     })
 })()
-

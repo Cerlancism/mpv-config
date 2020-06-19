@@ -1,0 +1,10 @@
+{
+  "name": "mpv",
+  "version": "1.0.0",
+  "description": "",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/mpv": "https://github.com/Cerlancism/mpv.d.ts"
+  }
+}
