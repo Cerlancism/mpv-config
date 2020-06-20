@@ -8,13 +8,12 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
     if (!LOG_PATH)
     {
         print("No logging")
-        //@ts-ignore
         return
     }
 
     /**
- * @type {string[]}
- */
+     * @type {string[]}
+     */
     var playingList = []
 
     function getFileFirstWord()

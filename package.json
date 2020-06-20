@@ -1,9 +1,8 @@
 {
   "name": "mpv",
   "version": "1.0.0",
-  "description": "",
-  "author": "",
-  "license": "ISC",
+  "description": "Personal mpv configuration and custom scripts.",
+  "author": "Cerlancism",
   "dependencies": {
     "@types/mpv": "https://github.com/Cerlancism/mpv.d.ts"
   }

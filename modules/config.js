@@ -10,7 +10,7 @@
   */
 var config = {
     LOG_PATH: undefined,
-    FilterRegex: "/.*/",
+    FilterRegex: ".*",
     TrimList: []
 }
 
