@@ -75,6 +75,12 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
     mp.register_event("file-loaded", function ()
     {
         var fileNameStart = getFileFirstWord()
+
+        if (!fileNameStart)
+        {
+            return
+        }
+
         var cleaned = cleanName(fileNameStart)
         var target = LOG_PATH + cleaned + ".dat"
 
@@ -104,6 +110,12 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
     {
         var time = Date.now()
         var last = playingList.shift()
+
+        if (!last)
+        {
+            return
+        }
+
         var target = LOG_PATH + last + ".dat"
 
         var history = getHistoryFile(target)
