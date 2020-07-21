@@ -16,10 +16,10 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
      */
     var playingList = []
 
-    function getFileFirstWord()
+    function getLogName()
     {
         var filename = String(mp.get_property("filename/no-ext"))
-        return filename.split(" ")[0]
+        return cleanName(filename)
     }
 
     /**
@@ -42,7 +42,7 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
      * 
      * @param {string} raw 
      */
-    function checkIntegraty(raw)
+    function checkIntegrity(raw)
     {
         if (raw === undefined)
         {
@@ -74,19 +74,12 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
 
     mp.register_event("file-loaded", function ()
     {
-        var fileNameStart = getFileFirstWord()
-
-        if (!fileNameStart)
-        {
-            return
-        }
-
-        var cleaned = cleanName(fileNameStart)
+        var cleaned = getLogName()
         var target = LOG_PATH + cleaned + ".dat"
 
         playingList.push(cleaned)
 
-        var history = checkIntegraty(getHistoryFile(target))
+        var history = checkIntegrity(getHistoryFile(target))
         var playedTime = history.split("\n")
             .map(function (x)
             {
@@ -119,6 +112,14 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
         var target = LOG_PATH + last + ".dat"
 
         var history = getHistoryFile(target)
+        var lines = history.split("\n")
+
+        // There is least one other session playing the same file simultaniously
+        // Abort the end log as it will likely corrupt the log file due to the data race
+        if (lines[lines.length - 1].length === 0)
+        {
+            return
+        }
 
         var output = history + " " + time + "\n"
 

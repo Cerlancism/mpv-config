@@ -44,13 +44,16 @@ function trimeEnd(text, end)
     return text
 }
 
+var filterRegex = new RegExp(config.FilterRegex)
+
 /**
  * 
  * @param {string} name 
  */
 function isCleanseTarget(name)
 {
-    return name.match(new RegExp(config.FilterRegex))
+    name = name.split(" ")[0]
+    return filterRegex.test(name)
 }
 
 /**
@@ -109,7 +112,7 @@ module.exports = function (name)
         {
             return name
         }
-        name = name.toUpperCase()
+        name = name.split(" ")[0].toUpperCase()
 
         name = expectDash(name)
 
