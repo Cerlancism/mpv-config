@@ -1,0 +1,26 @@
+From fbd82ca6158d43aadd71edec64e9533a653f20fb Mon Sep 17 00:00:00 2001
+From: Cerlancism <scheduledx@gmail.com>
+Date: Sun, 7 Mar 2021 18:32:00 +0800
+Subject: [PATCH] use nvenc for hwdec
+
+---
+ mpv.conf | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mpv.conf b/mpv.conf
+index fe25531..b41f6ea 100644
+--- a/mpv.conf
++++ b/mpv.conf
+@@ -13,7 +13,8 @@ sub-margin-y=30
+ sub-bold=no
+ sub-font="Microsoft YaHei"
+ 
+-hwdec=yes
++vo=gpu
++hwdec=nvdec
+ 
+ screenshot-directory = '~~desktop/'
+ 
+-- 
+2.29.2.windows.2
+
