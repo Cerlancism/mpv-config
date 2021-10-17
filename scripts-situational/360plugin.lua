@@ -85,10 +85,10 @@ local init_dfov = 0.0
 
 
 local doit = 0.0
-local res  = 7.0
+local res  = 5.0
 local dragging = false
 
-local smoothMouse = true
+local smoothMouse = false
 
 local scaling   = 'linear'
 
@@ -237,17 +237,30 @@ local mouse_btn0_cb = function ()
 	dragging = not dragging
 	if dragging then
 		mp.set_property("cursor-autohide", "always")
+		mp.commandv("script-message", "osc-visibility", "never")
 	else
 		mp.set_property("cursor-autohide", saved_props["cursor-autohide"])
+		mp.commandv("script-message", "osc-visibility", "always")
 	end 
 end
 
+-- local pMouseX = 0
+-- local pMouseY = 0
+-- local MousePosx = mp.get_property("osd-width")
+-- local MousePosy = mp.get_property("osd-height")
+
 local mouse_pan = function ()
+	-- local cMouseX, cMouseY = mp.get_mouse_pos()
+	-- local dX = (cMouseX - pMouseX)
+	-- local dY = (cMouseY - pMouseY)
+	-- pMouseX = cMouseX
+	-- pMouseY = cMouseY
+	-- mp.osd_message(string.format("\n\ndX: %s dY: %s X: %s Y: %s", dX, dY, MousePosx, MousePosy), 0.5)
 	if dragging then
 
 		local MousePosx, MousePosy = mp.get_mouse_pos()
-		local osd_w, osd_h = mp.get_property("osd-width"), mp.get_property("osd-height")
 
+		local osd_w, osd_h = mp.get_property("osd-width"), mp.get_property("osd-height")
 
 		local yawpc 	= ((MousePosx/osd_w)-0.5)*180
 		local pitchpc   = -((MousePosy/osd_h)-0.5)*180
