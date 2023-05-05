@@ -556,16 +556,23 @@ local onExit = function()
 end
 
 local save_props = function()
+	-- mp.set_property("gpu-context", "d3d11")
+	-- mp.set_property("vo", "gpu")
+	-- mp.set_property("gpu-api", "vulkan")
+	-- mp.set_property("d3d11-adapter", "Intel(R) UHD Graphics 630")
+	-- mp.set_property("vulkan-device", "Intel(R) UHD Graphics 630")
+	-- local hwdec_expected = "auto-copy"
+	local hwdec_expected = "no"
 	for k, _ in pairs(saved_props) do
 		local propv = (mp.get_property(k) or "NIL")
 		saved_props[k] = propv
-
-		if k == "hwdec" and propv ~= "no" then
+		
+		if k == "hwdec" and propv ~= hwdec_expected then
 			-- Workaround: hardware acceleration rarely works well, so we have to disable it.
 			-- Error: [ffmpeg] Impossible to convert between the formats supported by 
 			-- the filter 'mpv_src_default_in' and the filter 'auto_scaler_0'
 			-- mp.osd_message("Temporarily turning off hardware decoding.", 1.5)
-			-- mp.set_property("hwdec", "no")
+			mp.set_property("hwdec", hwdec_expected)
 		end
 	end
 end

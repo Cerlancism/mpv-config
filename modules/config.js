@@ -31,7 +31,7 @@ catch (error)
     mp.msg.warn(error.message)
 }
 
-print("Js Custom Config")
-dump(config)
+// print("Js Custom Config")
+// dump(config)
 
 module.exports = config

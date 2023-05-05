@@ -3,7 +3,10 @@ var cleanName = require("../modules/cleanName")
 
 var LOG_PATH = require("../modules/config").LOG_PATH;
 
-(function ()
+//@ts-ignore
+var titleTemplate = mp.get_property("title")
+
+; (function ()
 {
     if (!LOG_PATH)
     {
@@ -77,6 +80,12 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
         var cleaned = getLogName()
         var target = LOG_PATH + cleaned + ".dat"
 
+        if (target.length > 128)
+        {
+            print("history name too long")
+            return
+        }
+
         playingList.push(cleaned)
 
         var history = checkIntegrity(getHistoryFile(target))
@@ -95,8 +104,15 @@ var LOG_PATH = require("../modules/config").LOG_PATH;
                 return a + b
             }, 0)
         var output = history + Date.now()
-        mp.osd_message(cleaned + " history: " + (playedTime / 1000).toFixed(2) + " s")
+        var playTimeMessage = (playedTime / 1000).toFixed(2) + " s"
+        var message = cleaned + " history: " + playTimeMessage
+        print(message)
+        // mp.osd_message(message, 5)
         mp.utils.write_file("file://" + target, output)
+
+        print("Title: " + titleTemplate)
+        //@ts-ignore
+        mp.set_property("title", titleTemplate + "    " + playTimeMessage)
     })
 
     mp.register_event("end-file", function ()
