@@ -22,7 +22,12 @@ var titleTemplate = mp.get_property("title")
     function getLogName()
     {
         var filename = String(mp.get_property("filename/no-ext"))
-        return cleanName(filename)
+        var cleanedName = cleanName(filename)
+		if (filename == cleanedName) {
+			var splits = cleanedName.split("#")
+			cleanedName = splits[0].trim()
+		}
+		return cleanedName
     }
 
     /**
