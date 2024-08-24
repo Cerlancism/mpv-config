@@ -6,6 +6,7 @@ local slow_speed2 = 1 / 60
 local saved_vf = nil
 local speed_timer = nil
 local vf_restore_timer = nil
+local sync_interval_restore = nil
 
 function gradually_restore_speed()
     local current_speed = mp.get_property_number("speed")
@@ -19,6 +20,10 @@ function gradually_restore_speed()
             if saved_vf ~= nil then
                 mp.set_property_native("vf", saved_vf)
                 saved_vf = nil
+            end
+            if sync_interval_restore ~= nil then
+                mp.set_property_number("d3d11-sync-interval", sync_interval_restore)
+                sync_interval_restore = nil
             end
         end)
     end
@@ -39,6 +44,10 @@ function handle_key(event, speed)
         if vf_restore_timer ~= nil then
             vf_restore_timer:kill()
             vf_restore_timer = nil
+        end
+        if sync_interval_restore == nil then
+            sync_interval_restore = mp.get_property_number("d3d11-sync-interval", 1)
+            mp.set_property_number("d3d11-sync-interval", 1)
         end
         mp.set_property_number("speed", speed)
     elseif event == "up" then
