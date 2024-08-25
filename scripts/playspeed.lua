@@ -5,6 +5,7 @@ local slow_speed2 = 1 / 60
 
 local args_vf = mp.get_property_native("vf", nil)
 local opt_d3d11_sync = mp.get_opt("d3d11_sync", nil)
+local prop_audio = mp.get_property("audio", nil)
 
 local speed_timer = nil
 local vf_restore_timer = nil
@@ -15,8 +16,9 @@ local vf_restore_timer = nil
 
 function gradually_restore_speed()
     local current_speed = mp.get_property_number("speed")
+    mp.set_property("audio", "no")
     if current_speed > 1 then
-        current_speed = current_speed - 0.25
+        current_speed = current_speed / 2
         print("set speed " .. current_speed)
         mp.set_property_number("speed", current_speed)
         speed_timer = mp.add_timeout(1 / 120, gradually_restore_speed)
@@ -27,6 +29,9 @@ function gradually_restore_speed()
                 print("set vf")
                 mp.set_property_native("vf", args_vf)
             end
+            if prop_audio ~= nil then
+                mp.set_property("audio", prop_audio)
+            end 
         end)
     end
 end
@@ -53,6 +58,7 @@ function handle_key(event, speed)
             vf_restore_timer:kill()
             vf_restore_timer = nil
         end
+        prop_audio = mp.get_property("audio", prop_audio)
         print("set speed " .. speed)
         mp.set_property_number("speed", speed)
     elseif event == "up" then
