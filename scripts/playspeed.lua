@@ -38,6 +38,10 @@ end
 function handle_key(event, speed)
     if event == "down" then
         -- Save the current video filters and clear them
+        if d3d11_sync ~= nil and sync_interval_restore == nil then
+            sync_interval_restore = mp.get_property_number("d3d11-sync-interval", 1)
+            mp.set_property_number("d3d11-sync-interval", 1)
+        end
         if saved_vf == nil then
             saved_vf = mp.get_property_native("vf")
             mp.set_property_native("vf", {})
@@ -50,10 +54,6 @@ function handle_key(event, speed)
         if vf_restore_timer ~= nil then
             vf_restore_timer:kill()
             vf_restore_timer = nil
-        end
-        if d3d11_sync ~= nil and sync_interval_restore == nil then
-            sync_interval_restore = mp.get_property_number("d3d11-sync-interval", 1)
-            mp.set_property_number("d3d11-sync-interval", 1)
         end
         mp.set_property_number("speed", speed)
     elseif event == "up" then
