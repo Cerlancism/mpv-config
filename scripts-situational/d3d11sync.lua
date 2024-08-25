@@ -4,6 +4,12 @@ local vf_restore_timer = nil
 local target_fps = {30, 60}
 local fps_tolerance = 1
 
+local args_vf = mp.get_property_native("vf", nil)
+
+local computed_sync_interval = nil
+
+local seeking = false
+
 local estimate_fps_timer = mp.add_timeout(3, function()
     local current_sync = mp.get_property_number("d3d11-sync-interval", nil)
     if current_sync == nil then
@@ -24,10 +30,12 @@ function start()
     end
 
     if sync_interval ~= nil then
+        computed_sync_interval = sync_interval
+        mp.set_property_number("computed_sync_interval", computed_sync_interval)
         print("sync_interval " .. sync_interval)
         mp.unobserve_property(start)
         mp.set_property_number("d3d11-sync-interval", sync_interval)
-        mp.osd_message("FPS: " .. estimated_fps .. " | d3d11-sync-interval set to: " .. sync_interval)
+        mp.osd_message("FPS: " .. estimated_fps .. " | d3d11-sync-interval set to: " .. sync_interval, 5)
     end
 end
 
@@ -45,18 +53,22 @@ mp.register_event("seek", function()
         vf_restore_timer = nil
     end
 
-    if saved_vf == nil then
-        saved_vf = mp.get_property_native("vf")
+    if seeking then
+        return
+    end
+
+    seeking = true
+
+    if args_vf ~= nil then
+        print("default vf")
         mp.set_property_native("vf", {})
     end
 
-    if sync_interval_restore == nil then
-        sync_interval_restore = mp.get_property_number("d3d11-sync-interval", 1)
+    if computed_sync_interval ~= nil then
+        print("default d3d11-sync-interval")
         mp.set_property_number("d3d11-sync-interval", 1)
     end
 end)
-
-
 
 mp.register_event("playback-restart", function()
 
@@ -66,15 +78,35 @@ mp.register_event("playback-restart", function()
         vf_restore_timer = nil
     end
 
-    -- Set a debounce timer of 100ms before re-enabling the video filters
-    vf_restore_timer = mp.add_timeout(0.3, function()
-        if saved_vf ~= nil then
-            mp.set_property_native("vf", saved_vf)
-            saved_vf = nil
+    -- Set a debounce timer before re-enabling the video filters
+    vf_restore_timer = mp.add_timeout(1.0 / 30 * 10, function()
+        seeking = false
+        local current_speed = mp.get_property_number("speed")
+
+        if current_speed > 1 then
+            print("skip vf_restore_timer because current_speed is " .. current_speed)
+            return
         end
-        if sync_interval_restore ~= nil then
-            mp.set_property_number("d3d11-sync-interval", sync_interval_restore)
-            sync_interval_restore = nil
+
+        if computed_sync_interval ~= nil then
+            print("set d3d11-sync-interval " .. computed_sync_interval)
+            mp.set_property_number("d3d11-sync-interval", computed_sync_interval)
+        end
+
+        if args_vf ~= nil then
+            print("set vf")
+            mp.set_property_native("vf", args_vf)
         end
     end)
+end)
+
+mp.observe_property("speed", "number", function(name, value)
+    if value ~= 1 then
+        return
+    end
+    print("observe_property " .. name .. " " .. value)
+    if computed_sync_interval ~= nil then
+        print("set d3d11-sync-interval " .. computed_sync_interval)
+        mp.set_property_number("observe_property d3d11-sync-interval", computed_sync_interval)
+    end
 end)

@@ -3,33 +3,29 @@ local fast_speed2 = 60
 local slow_speed = 1 / 2
 local slow_speed2 = 1 / 60
 
-local saved_vf = nil
+local args_vf = mp.get_property_native("vf", nil)
+local opt_d3d11_sync = mp.get_opt("d3d11_sync", nil)
+
 local speed_timer = nil
 local vf_restore_timer = nil
-local sync_interval_restore = nil
 
-local d3d11_sync = mp.get_opt("d3d11_sync") or nil
-
--- if d3d11_sync ~= nil then
---     print("has d3d11_sync")
+-- if opt_d3d11_sync ~= nil then
+--     print("has opt_d3d11_sync")
 -- end
 
 function gradually_restore_speed()
     local current_speed = mp.get_property_number("speed")
     if current_speed > 1 then
-        current_speed = current_speed / 2
+        current_speed = current_speed - 0.25
+        print("set speed " .. current_speed)
         mp.set_property_number("speed", current_speed)
-        speed_timer = mp.add_timeout(1 / 60, gradually_restore_speed)
+        speed_timer = mp.add_timeout(1 / 120, gradually_restore_speed)
     else
-        -- When normal speed is reached, restore the saved video filters after 1 second
-        vf_restore_timer = mp.add_timeout(1 / 60, function()
-            if saved_vf ~= nil then
-                mp.set_property_native("vf", saved_vf)
-                saved_vf = nil
-            end
-            if d3d11_sync ~= nil and sync_interval_restore ~= nil then
-                mp.set_property_number("d3d11-sync-interval", sync_interval_restore)
-                sync_interval_restore = nil
+        -- When normal speed is reached, restore the saved video filter
+        vf_restore_timer = mp.add_timeout(1 / 120, function()
+            if args_vf ~= nil then
+                print("set vf")
+                mp.set_property_native("vf", args_vf)
             end
         end)
     end
@@ -38,14 +34,14 @@ end
 function handle_key(event, speed)
     if event == "down" then
         -- Save the current video filters and clear them
-        if d3d11_sync ~= nil and sync_interval_restore == nil then
-            sync_interval_restore = mp.get_property_number("d3d11-sync-interval", 1)
+        if opt_d3d11_sync ~= nil then
+            print("defaut d3d11-sync-interval")
             mp.set_property_number("d3d11-sync-interval", 1)
         end
-        if saved_vf == nil then
-            saved_vf = mp.get_property_native("vf")
-            mp.set_property_native("vf", {})
-        end
+        -- if args_vf ~= nil then
+        --     print("default vf")
+        --     mp.set_property_native("vf", {})
+        -- end
         -- Cancel any existing timers
         if speed_timer ~= nil then
             speed_timer:kill()
@@ -55,6 +51,9 @@ function handle_key(event, speed)
             vf_restore_timer:kill()
             vf_restore_timer = nil
         end
+        print("set speed " .. speed)
+        -- mp.set_property_native("vf", {})
+        mp.set_property_native("vf", { { name = "fps", params = { fps = "30000/1001" } } })
         mp.set_property_number("speed", speed)
     elseif event == "up" then
         -- Gradually restore the speed to normal
