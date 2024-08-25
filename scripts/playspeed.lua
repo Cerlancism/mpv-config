@@ -38,10 +38,12 @@ function handle_key(event, speed)
             print("defaut d3d11-sync-interval")
             mp.set_property_number("d3d11-sync-interval", 1)
         end
-        -- if args_vf ~= nil then
-        --     print("default vf")
-        --     mp.set_property_native("vf", {})
-        -- end
+        if args_vf ~= nil then
+            -- print("default vf")
+            -- mp.set_property_native("vf", {})
+            print("fps reduction vf")
+            mp.set_property_native("vf", { { name = "fps", params = { fps = "30000/1001" } } })
+        end
         -- Cancel any existing timers
         if speed_timer ~= nil then
             speed_timer:kill()
@@ -52,8 +54,6 @@ function handle_key(event, speed)
             vf_restore_timer = nil
         end
         print("set speed " .. speed)
-        -- mp.set_property_native("vf", {})
-        mp.set_property_native("vf", { { name = "fps", params = { fps = "30000/1001" } } })
         mp.set_property_number("speed", speed)
     elseif event == "up" then
         -- Gradually restore the speed to normal
