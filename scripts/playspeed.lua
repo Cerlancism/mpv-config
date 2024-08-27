@@ -14,24 +14,27 @@ local vf_restore_timer = nil
 --     print("has opt_d3d11_sync")
 -- end
 
+local delta_time = 1 / (120000 / 1001)
+
 function gradually_restore_speed()
     local current_speed = mp.get_property_number("speed")
-    mp.set_property("audio", "no")
     if current_speed > 1 then
         current_speed = current_speed / 2
+        mp.set_property_native("vf", { { name = "fps", params = { fps = tostring(120000 / current_speed) .. "/1001" } } })
         print("set speed " .. current_speed)
         mp.set_property_number("speed", current_speed)
-        speed_timer = mp.add_timeout(1 / 120, gradually_restore_speed)
+        speed_timer = mp.add_timeout(delta_time * 4, gradually_restore_speed)
     else
-        -- When normal speed is reached, restore the saved video filter
-        vf_restore_timer = mp.add_timeout(1 / 120, function()
-            if args_vf ~= nil then
-                print("set vf")
-                mp.set_property_native("vf", args_vf)
-            end
+        vf_restore_timer = mp.add_timeout(delta_time * 4, function()
             if prop_audio ~= nil then
                 mp.set_property("audio", prop_audio)
             end 
+            vf_restore_timer = mp.add_timeout(delta_time * 4, function() 
+                if args_vf ~= nil then
+                    print("set vf")
+                    mp.set_property_native("vf", args_vf)
+                end
+            end)
         end)
     end
 end
@@ -47,7 +50,11 @@ function handle_key(event, speed)
             -- print("default vf")
             -- mp.set_property_native("vf", {})
             print("fps reduction vf")
-            mp.set_property_native("vf", { { name = "fps", params = { fps = "30000/1001" } } })
+            if speed == fast_speed then
+                mp.set_property_native("vf", { { name = "fps", params = { fps = "30000/1001" } } })
+            else
+                mp.set_property_native("vf", { { name = "fps", params = { fps = tostring(120000 / speed) .. "/1001" } } })
+            end
         end
         -- Cancel any existing timers
         if speed_timer ~= nil then
@@ -58,12 +65,19 @@ function handle_key(event, speed)
             vf_restore_timer:kill()
             vf_restore_timer = nil
         end
-        prop_audio = mp.get_property("audio", prop_audio)
+        local prop_audio_current = mp.get_property("audio")
+        if prop_audio_current ~= nil then
+            prop_audio = prop_audio_current
+        end
+        if speed == fast_speed2 then
+           mp.set_property("audio", "no")
+        end
         print("set speed " .. speed)
         mp.set_property_number("speed", speed)
     elseif event == "up" then
+        mp.set_property("audio", "no")
         -- Gradually restore the speed to normal
-        gradually_restore_speed()
+        mp.add_timeout(delta_time * 4, gradually_restore_speed)
     end
 end
 
