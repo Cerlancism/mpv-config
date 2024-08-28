@@ -72,7 +72,7 @@ function handle_key(event, speed)
 
         local prop_audio_current = mp.get_property("audio")
         if not is_restoring_speed then
-            print("set prop_audio ==================" .. prop_audio_current)
+            print("set prop_audio " .. prop_audio_current)
             prop_audio = prop_audio_current
         end
 
