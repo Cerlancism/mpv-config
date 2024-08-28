@@ -9,6 +9,7 @@ local prop_audio = mp.get_property("audio", nil)
 
 local speed_timer = nil
 local vf_restore_timer = nil
+local is_restoring_speed = false
 
 -- if opt_d3d11_sync ~= nil then
 --     print("has opt_d3d11_sync")
@@ -21,6 +22,7 @@ function gradually_restore_speed()
     if current_speed > 1 then
         current_speed = current_speed / 2
         mp.set_property_native("vf", { { name = "fps", params = { fps = tostring(120000 / current_speed) .. "/1001" } } })
+        current_speed = (current_speed < 1) and 1 or current_speed 
         print("set speed " .. current_speed)
         mp.set_property_number("speed", current_speed)
         speed_timer = mp.add_timeout(delta_time * 4, gradually_restore_speed)
@@ -28,11 +30,13 @@ function gradually_restore_speed()
         vf_restore_timer = mp.add_timeout(delta_time * 4, function()
             if prop_audio ~= nil then
                 mp.set_property("audio", prop_audio)
+                is_restoring_speed = false
             end 
             vf_restore_timer = mp.add_timeout(delta_time * 4, function() 
                 if args_vf ~= nil then
                     print("set vf")
                     mp.set_property_native("vf", args_vf)
+                    mp.set_property("video-sync", "audio")
                 end
             end)
         end)
@@ -65,17 +69,28 @@ function handle_key(event, speed)
             vf_restore_timer:kill()
             vf_restore_timer = nil
         end
+
         local prop_audio_current = mp.get_property("audio")
-        if prop_audio_current ~= nil then
+        if not is_restoring_speed then
+            print("set prop_audio ==================" .. prop_audio_current)
             prop_audio = prop_audio_current
         end
+
+        if prop_audio ~= nil then
+            print("set audio " .. prop_audio)
+            mp.set_property("audio", prop_audio)
+        end
+
         if speed == fast_speed2 then
            mp.set_property("audio", "no")
         end
         print("set speed " .. speed)
         mp.set_property_number("speed", speed)
+        is_restoring_speed = false
     elseif event == "up" then
+        is_restoring_speed = true
         mp.set_property("audio", "no")
+        mp.set_property("video-sync", "display-tempo")
         -- Gradually restore the speed to normal
         mp.add_timeout(delta_time * 4, gradually_restore_speed)
     end
