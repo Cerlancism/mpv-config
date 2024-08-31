@@ -36,7 +36,6 @@ function gradually_restore_speed()
                 if args_vf ~= nil then
                     print("set vf")
                     mp.set_property_native("vf", args_vf)
-                    mp.set_property("video-sync", "audio")
                 end
             end)
         end)
@@ -90,7 +89,6 @@ function handle_key(event, speed)
     elseif event == "up" then
         is_restoring_speed = true
         mp.set_property("audio", "no")
-        mp.set_property("video-sync", "display-tempo")
         -- Gradually restore the speed to normal
         mp.add_timeout(delta_time * 4, gradually_restore_speed)
     end
