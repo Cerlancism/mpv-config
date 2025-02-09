@@ -76,11 +76,11 @@ local outputProjections = {
 }
 
 local outputProjectionInd = 0
-local outputProjection    = "flat"
+local outputProjection    = "sg"
 
 local idfov=180.0
-local dfov=110.0
-local last_dfov  = 110.0
+local dfov=150.0
+local last_dfov  = 150.0
 local init_dfov = 0.0
 
 
