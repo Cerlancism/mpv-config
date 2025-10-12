@@ -3,19 +3,21 @@
 // - on release => restore original vf exactly as captured (or startup --vf=), else drop temp fps
 // - property *wrappers* (no overrides) to log all sets
 
-const fast_speed  = 4;
-const fast_speed2 = 20;
-const slow_speed  = 1 / 2;
-const slow_speed2 = 1 / 20;
+"use strict";
+
+var fast_speed = 4;
+var fast_speed2 = 20;
+var slow_speed = 1 / 2;
+var slow_speed2 = 1 / 20;
 
 // ===== Debug / Trace toggles =====
-const TRACE_PROPS = true; // set to false to silence property set logs
+var TRACE_PROPS = true; // set to false to silence property set logs
 
 // ========= Tiny helpers =========
 function toStr(v) {
   try {
-    if (typeof v === "object") return JSON.stringify(v);
-  } catch (_) {}
+    if (v && typeof v === "object") return JSON.stringify(v);
+  } catch (e) { }
   return String(v);
 }
 
@@ -27,17 +29,17 @@ function deepCopy(obj) {
 // ===== Property wrappers (no overrides) =====
 function set_prop(name, value) {
   if (TRACE_PROPS) {
-    const old = mp.get_property(name, null);
-    print(`[set_property] ${name}: ${toStr(old)} -> ${toStr(value)}`);
+    var old = mp.get_property(name, null);
+    print("[set_property] " + name + ": " + toStr(old) + " -> " + toStr(value));
   }
   return mp.set_property(name, value);
 }
 
 function set_prop_number(name, value) {
   if (TRACE_PROPS) {
-    let old = "<?>";
-    try { old = mp.get_property_number(name); } catch (_) {}
-    print(`[set_property_number] ${name}: ${toStr(old)} -> ${toStr(value)}`);
+    var old = "<?>";
+    try { old = mp.get_property_number(name); } catch (e) { }
+    print("[set_property_number] " + name + ": " + toStr(old) + " -> " + toStr(value));
   }
   return mp.set_property_number(name, value);
 }
@@ -45,25 +47,25 @@ function set_prop_number(name, value) {
 function set_prop_native(name, value) {
   if (TRACE_PROPS) {
     // Logging only new to avoid giant dumps
-    print(`[set_property_native] ${name}: new=${toStr(value)}`);
+    print("[set_property_native] " + name + ": new=" + toStr(value));
   }
   return mp.set_property_native(name, value);
 }
 
 // ===== Init properties =====
-const args_vf       = mp.get_property_native("vf", null);   // remember startup --vf=
-const opt_d3d11_sync = mp.get_opt("d3d11_sync", null);
-let   prop_audio    = mp.get_property("audio", null);
+var args_vf = mp.get_property_native("vf", null);   // remember startup --vf=
+var opt_d3d11_sync = mp.get_opt("d3d11_sync", null);
+var prop_audio = mp.get_property("audio", null);
 
-let speed_timer = null;
-let vf_restore_timer = null;
-let is_restoring_speed = false;
+var speed_timer = null;
+var vf_restore_timer = null;
+var is_restoring_speed = false;
 
 // We capture the *live* chain at key down to restore it exactly on release
-let vf_at_keydown = null;
+var vf_at_keydown = null;
 
 // mpv timebase from the original
-const delta_time = 1 / (120000 / 1001);
+var delta_time = 1 / (120000 / 1001);
 
 print("startup vf:", toStr(args_vf));
 
@@ -83,16 +85,19 @@ function normName(x) {
 }
 
 function isLavfiFpsFilter(f) {
-  const g = f?.params?.graph;
+  var g = null;
+  if (f && f.params && typeof f.params.graph === "string") {
+    g = f.params.graph;
+  }
   return typeof g === "string" && /[=,:]\s*fps\s*=/.test(g);
 }
 
 function find_fps(vf) {
   if (!Array.isArray(vf)) return [null, null];
-  for (let i = 0; i < vf.length; i++) {
-    const f = vf[i];
+  for (var i = 0; i < vf.length; i++) {
+    var f = vf[i];
     if (f && typeof f === "object") {
-      const name = normName(f.name);
+      var name = normName(f.name);
       if (name === "fps") return [i, f];
       if (name === "lavfi" && isLavfiFpsFilter(f)) return [i, f];
     }
@@ -102,9 +107,10 @@ function find_fps(vf) {
 
 function remove_fps(vf) {
   vf = deepCopy(vf) || [];
-  const out = [];
-  for (const f of vf) {
-    if (normName(f?.name) !== "fps") out.push(f);
+  var out = [];
+  for (var i = 0; i < vf.length; i++) {
+    var f = vf[i];
+    if (normName(f && f.name) !== "fps") out.push(f);
   }
   return out;
 }
@@ -112,7 +118,8 @@ function remove_fps(vf) {
 // Insert/Update fps; place FIRST when speed>1, else append (keeps things simple for <=1)
 function upsert_fps(vf, fps_expr, speed, slowing) {
   vf = deepCopy(vf) || [];
-  let [idx, fps_filter] = find_fps(vf);
+  var res = find_fps(vf);
+  var idx = res[0], fps_filter = res[1];
 
   if (fps_filter) {
     if (idx != null) vf.splice(idx, 1);        // remove from old position
@@ -130,12 +137,12 @@ function upsert_fps(vf, fps_expr, speed, slowing) {
   return vf;
 }
 
-// Your current rule for fps value when speeding vs other:
+// Current rule for fps value when speeding vs other:
 function fps_for_speed(speed, slowing) {
   if (speed > 1 || slowing) {
-    return `${60000 / speed}/1001`;
+    return (60000 / speed) + "/1001";
   } else {
-    return `${120000 / speed}/1001`;
+    return (120000 / speed) + "/1001";
   }
 }
 
@@ -148,18 +155,18 @@ function restore_original_vf_exact() {
 
 // ========= Gradual restore =========
 function gradually_restore_speed(instant) {
-  let current_speed;
+  var current_speed;
   try {
     current_speed = mp.get_property_number("speed");
-  } catch (_) {
+  } catch (e) {
     current_speed = 1;
   }
 
   if (instant === true) {
     // Jump speed to 1x immediately; do NOT touch vf here (we'll restore later)
-    let vf_now = get_vf();
-    vf_now = upsert_fps(vf_now, "30000/1001", current_speed, true);
-    set_vf(vf_now);
+    var vf_now0 = get_vf();
+    vf_now0 = upsert_fps(vf_now0, "30000/1001", current_speed, true);
+    set_vf(vf_now0);
     current_speed = 1;
     set_prop_number("speed", current_speed);
   }
@@ -171,7 +178,7 @@ function gradually_restore_speed(instant) {
     set_prop_number("speed", current_speed);
 
     // While restoring (>1), keep fps merged (first)
-    let vf_now = get_vf();
+    var vf_now = get_vf();
     vf_now = upsert_fps(vf_now, "30000/1001", current_speed, true);
     set_vf(vf_now);
 
@@ -185,7 +192,7 @@ function gradually_restore_speed(instant) {
         is_restoring_speed = false;
         set_prop("video-sync", "display-adrop");
 
-        const current_prop_audio = mp.get_property("audio", null);
+        var current_prop_audio = mp.get_property("audio", null);
         if (prop_audio !== current_prop_audio) {
           set_prop("audio", prop_audio);
         }
@@ -208,7 +215,7 @@ function handle_key(event, speed) {
     if (speed_timer) { speed_timer.kill(); speed_timer = null; }
     if (vf_restore_timer) { vf_restore_timer.kill(); vf_restore_timer = null; }
 
-    const prop_audio_current = mp.get_property("audio");
+    var prop_audio_current = mp.get_property("audio");
     if (!is_restoring_speed) {
       prop_audio = prop_audio_current;
     }
@@ -217,7 +224,7 @@ function handle_key(event, speed) {
     vf_at_keydown = get_vf();
 
     // Merge/position fps for this speed
-    let vf_now = upsert_fps(vf_at_keydown, fps_for_speed(speed, false), speed, false);
+    var vf_now = upsert_fps(vf_at_keydown, fps_for_speed(speed, false), speed, false);
     set_vf(vf_now);
 
     if (speed === fast_speed2) {
