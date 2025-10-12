@@ -22,7 +22,6 @@ function toStr(v) {
 }
 
 function deepCopy(obj) {
-  // vf is plain JSON-like; JSON clone is fine and fast here.
   return obj == null ? obj : JSON.parse(JSON.stringify(obj));
 }
 
@@ -46,25 +45,22 @@ function set_prop_number(name, value) {
 
 function set_prop_native(name, value) {
   if (TRACE_PROPS) {
-    // Logging only new to avoid giant dumps
     print("[set_property_native] " + name + ": new=" + toStr(value));
   }
   return mp.set_property_native(name, value);
 }
 
 // ===== Init properties =====
-var args_vf = mp.get_property_native("vf", null);   // remember startup --vf=
+var args_vf = mp.get_property_native("vf", null);
 var opt_d3d11_sync = mp.get_opt("d3d11_sync", null);
 var prop_audio = mp.get_property("audio", null);
 
 var speed_timer = null;
 var vf_restore_timer = null;
 var is_restoring_speed = false;
-
-// We capture the *live* chain at key down to restore it exactly on release
 var vf_at_keydown = null;
 
-// mpv timebase from the original
+// mpv timebase
 var delta_time = 1 / (120000 / 1001);
 
 print("startup vf:", toStr(args_vf));
@@ -77,7 +73,6 @@ function set_vf(vf) {
   set_prop_native("vf", vf || []);
 }
 
-// Robust find_fps: normalize name and scan array items
 function normName(x) {
   if (x == null) return null;
   if (typeof x !== "string") x = String(x);
@@ -85,10 +80,7 @@ function normName(x) {
 }
 
 function isLavfiFpsFilter(f) {
-  var g = null;
-  if (f && f.params && typeof f.params.graph === "string") {
-    g = f.params.graph;
-  }
+  var g = f && f.params && typeof f.params.graph === "string" ? f.params.graph : null;
   return typeof g === "string" && /[=,:]\s*fps\s*=/.test(g);
 }
 
@@ -115,14 +107,13 @@ function remove_fps(vf) {
   return out;
 }
 
-// Insert/Update fps; place FIRST when speed>1, else append (keeps things simple for <=1)
 function upsert_fps(vf, fps_expr, speed, slowing) {
   vf = deepCopy(vf) || [];
   var res = find_fps(vf);
   var idx = res[0], fps_filter = res[1];
 
   if (fps_filter) {
-    if (idx != null) vf.splice(idx, 1);        // remove from old position
+    if (idx != null) vf.splice(idx, 1);
     fps_filter.params = fps_filter.params || {};
     fps_filter.params.fps = fps_expr;
   } else {
@@ -130,14 +121,13 @@ function upsert_fps(vf, fps_expr, speed, slowing) {
   }
 
   if (speed > 1 || !!slowing) {
-    vf.splice(0, 0, fps_filter);               // FIRST for fast-forward (or while slowing down >1)
+    vf.splice(0, 0, fps_filter);
   } else {
-    vf.push(fps_filter);                        // append otherwise
+    vf.push(fps_filter);
   }
   return vf;
 }
 
-// Current rule for fps value when speeding vs other:
 function fps_for_speed(speed, slowing) {
   if (speed > 1 || slowing) {
     return (60000 / speed) + "/1001";
@@ -146,8 +136,6 @@ function fps_for_speed(speed, slowing) {
   }
 }
 
-// Exact restore policy on release:
-// (Using current preference: restore startup args_vf)
 function restore_original_vf_exact() {
   set_vf(args_vf);
   vf_at_keydown = null;
@@ -163,7 +151,6 @@ function gradually_restore_speed(instant) {
   }
 
   if (instant === true) {
-    // Jump speed to 1x immediately; do NOT touch vf here (we'll restore later)
     var vf_now0 = get_vf();
     vf_now0 = upsert_fps(vf_now0, "30000/1001", current_speed, true);
     set_vf(vf_now0);
@@ -177,18 +164,22 @@ function gradually_restore_speed(instant) {
     set_prop("video-sync", "display-resample");
     set_prop_number("speed", current_speed);
 
-    // While restoring (>1), keep fps merged (first)
     var vf_now = get_vf();
     vf_now = upsert_fps(vf_now, "30000/1001", current_speed, true);
     set_vf(vf_now);
 
-    speed_timer = mp.add_timeout(delta_time * (120 / 4), gradually_restore_speed);
+    if (speed_timer) clearTimeout(speed_timer);
+    speed_timer = setTimeout(function () {
+      gradually_restore_speed();
+    }, delta_time * (120 / 4) * 1000);
+
   } else {
-    // We’re at 1x; settle, restore sync/audio, then restore the exact original vf
-    vf_restore_timer = mp.add_timeout(delta_time * (120 / 4), function () {
+    if (vf_restore_timer) clearTimeout(vf_restore_timer);
+    vf_restore_timer = setTimeout(function () {
       restore_original_vf_exact();
 
-      vf_restore_timer = mp.add_timeout(delta_time * (120 / 4), function () {
+      if (vf_restore_timer) clearTimeout(vf_restore_timer);
+      vf_restore_timer = setTimeout(function () {
         is_restoring_speed = false;
         set_prop("video-sync", "display-adrop");
 
@@ -197,11 +188,14 @@ function gradually_restore_speed(instant) {
           set_prop("audio", prop_audio);
         }
 
-        vf_restore_timer = mp.add_timeout(delta_time * (120 / 2), function () {
+        if (vf_restore_timer) clearTimeout(vf_restore_timer);
+        vf_restore_timer = setTimeout(function () {
           set_prop("video-sync", "audio");
-        });
-      });
-    });
+        }, delta_time * (120 / 2) * 1000);
+
+      }, delta_time * (120 / 4) * 1000);
+
+    }, delta_time * (120 / 4) * 1000);
   }
 }
 
@@ -212,18 +206,16 @@ function handle_key(event, speed) {
       set_prop_number("d3d11-sync-interval", 1);
     }
 
-    if (speed_timer) { speed_timer.kill(); speed_timer = null; }
-    if (vf_restore_timer) { vf_restore_timer.kill(); vf_restore_timer = null; }
+    if (speed_timer) clearTimeout(speed_timer);
+    if (vf_restore_timer) clearTimeout(vf_restore_timer);
 
     var prop_audio_current = mp.get_property("audio");
     if (!is_restoring_speed) {
       prop_audio = prop_audio_current;
     }
 
-    // Capture chain at key down (to restore exactly later)
     vf_at_keydown = get_vf();
 
-    // Merge/position fps for this speed
     var vf_now = upsert_fps(vf_at_keydown, fps_for_speed(speed, false), speed, false);
     set_vf(vf_now);
 
@@ -238,15 +230,13 @@ function handle_key(event, speed) {
 
   } else if (event === "up") {
     is_restoring_speed = true;
-    mp.add_timeout(delta_time * 4, function () {
+    setTimeout(function () {
       gradually_restore_speed(true);
-    });
+    }, delta_time * 4 * 1000);
   }
 }
 
 // ========= Key bindings =========
-// NOTE: In JS, pass `null` for the key to use only the name.
-// The `complex:true` flag is required to receive press/release events.
 mp.add_key_binding(null, "fastforward", function (args) {
   handle_key(args.event, fast_speed);
 }, { repeatable: false, complex: true });
@@ -267,7 +257,6 @@ mp.add_key_binding(null, "fastforward2x", function (args) {
   handle_key(args.event, 2);
 }, { repeatable: false, complex: true });
 
-// Avoid duplicate binding names
 mp.add_key_binding(null, "slowmotion_half", function (args) {
   handle_key(args.event, 0.5);
 }, { repeatable: false, complex: true });
