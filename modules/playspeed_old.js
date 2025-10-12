@@ -1,9 +1,9 @@
 //@ts-check
 
 var fast_speed = 4
-var fast_speed2 = 60
+var fast_speed2 = 20
 var slow_speed = 1 / 2
-var slow_speed2 = 1 / 60
+var slow_speed2 = 1 / 30
 
 function handle_key(event, speed)
 {
