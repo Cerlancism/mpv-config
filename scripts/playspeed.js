@@ -19,6 +19,8 @@ var fast_speed2 = 20;
 var slow_speed = 1 / 2;
 var slow_speed2 = 1 / 20;
 
+var selected_speed = 1;
+
 var autosync_target = 120;
 
 // ===== Init properties =====
@@ -141,7 +143,7 @@ function gradually_restore_speed(instant) {
         current_speed = 1;
     }
 
-    if (instant || current_speed === fast_speed) {
+    if (instant || selected_speed === fast_speed) {
         var vf_now0 = get_vf();
         vf_now0 = upsert_fps(vf_now0, fps_conserved(), current_speed, true);
         set_vf(vf_now0);
@@ -151,7 +153,7 @@ function gradually_restore_speed(instant) {
 
     set_property_logged("autosync", autosync_target)
 
-    if (current_speed > 1) {
+    if (current_speed > 1 && (selected_speed > fast_speed)) {
         print("gradually slow down")
         var slower_speed_candidate = current_speed / 2;
         var slower_speed = slower_speed_candidate < 1 ? 1 : slower_speed_candidate;
@@ -171,12 +173,10 @@ function gradually_restore_speed(instant) {
         }, delta_time * (120 / 12) * 1000);
     } else {
         vf_restore_timer = setTimeout(function () {
-            restore_original_vf_exact();
+            is_restoring_speed = false;
+            set_property_logged("video-sync", "audio");
 
             vf_restore_timer = setTimeout(function () {
-                is_restoring_speed = false;
-                set_property_logged("video-sync", "audio");
-
                 var current_prop_audio = mp.get_property("audio", null);
                 if (prop_audio !== current_prop_audio) {
                     set_property_logged("audio", prop_audio);
@@ -184,6 +184,7 @@ function gradually_restore_speed(instant) {
 
                 vf_restore_timer = setTimeout(function () {
                     set_property_logged("autosync", prop_autosync)
+                    restore_original_vf_exact();
                 }, delta_time * (120) * 1000);
 
             }, delta_time * (120 / 4) * 1000);
@@ -217,8 +218,11 @@ function handle_key(event, speed) {
         set_vf(vf_now);
 
         if (speed === fast_speed2) {
+            selected_speed = fast_speed2;
             set_property_logged("video-sync", "display-desync");
             set_property_logged("audio", "no");
+        } else if (speed === fast_speed) {
+            selected_speed = fast_speed;
         }
 
         set_property_logged("video-sync", "display-desync");
