@@ -4,6 +4,6 @@
   "description": "Personal mpv configuration and custom scripts.",
   "author": "Cerlancism",
   "dependencies": {
-    "@types/mpv": "https://github.com/Cerlancism/mpv.d.ts"
+    "@types/mpv": "github:Cerlancism/mpv.d.ts"
   }
 }
