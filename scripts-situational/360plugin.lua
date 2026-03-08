@@ -24,6 +24,8 @@ local function setup()
     if h > 4000 then
         if scale_down then
             mp.msg.info("360plugin: height > 4000, scaling down via GLSL pre-pass")
+            -- mp.set_property("hwdec", "no")
+            mp.command("no-osd vf append fps=30000/1001")
             mp.command("no-osd change-list glsl-shaders append " .. predownscale_shader)
             predownscale_active = true
         end
