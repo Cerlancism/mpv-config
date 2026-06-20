@@ -25,7 +25,7 @@ var autosync_target = 120;
 
 // ===== Init properties =====
 var args_vf = mp.get_property_native("vf", null);
-var opt_d3d11_sync = mp.get_opt("d3d11_sync", null);
+var opt_d3d11_sync = mp.get_opt("d3d11_sync");
 var prop_audio = mp.get_property("audio", null);
 var prop_autosync = mp.get_property("autosync", null)
 
@@ -34,8 +34,10 @@ var vf_restore_timer = null;
 var is_restoring_speed = false;
 var vf_at_keydown = null;
 
+var baseFps = 120
+
 // mpv timebase
-var delta_time = 1 / (120000 / 1001);
+var delta_time = 1 / ((baseFps * 1000) / 1001);
 
 print("startup vf:", to_string(args_vf));
 
@@ -44,7 +46,7 @@ function get_vf() {
     return mp.get_property_native("vf") || [];
 }
 /**
- * @param {any[]} vf
+ * @param {unknown} vf
  */
 function set_vf(vf) {
     set_property_native_logged("vf", vf || []);
@@ -84,7 +86,7 @@ function find_fps(vf) {
 }
 
 /**
- * @param {any[]} vf
+ * @param {any} vf
  * @param {string} fps_expr
  * @param {number} speed
  * @param {boolean} slowing
@@ -116,9 +118,9 @@ function upsert_fps(vf, fps_expr, speed, slowing) {
  */
 function fps_for_speed(speed, slowing) {
     if (speed > 1 || slowing) {
-        return (60000 / speed) + "/1001";
+        return ((baseFps * 1000 / 2) / speed) + "/1001";
     } else {
-        return (120000 / speed) + "/1001";
+        return (baseFps * 1000 / speed) + "/1001";
     }
 }
 
@@ -170,7 +172,7 @@ function gradually_restore_speed(instant) {
 
         speed_timer = setTimeout(function () {
             gradually_restore_speed();
-        }, delta_time * (120 / 12) * 1000);
+        }, delta_time * (baseFps / 12) * 1000);
     } else {
         vf_restore_timer = setTimeout(function () {
             is_restoring_speed = false;
@@ -185,11 +187,11 @@ function gradually_restore_speed(instant) {
                 vf_restore_timer = setTimeout(function () {
                     set_property_logged("autosync", prop_autosync)
                     restore_original_vf_exact();
-                }, delta_time * (120) * 1000);
+                }, delta_time * (baseFps) * 1000);
 
-            }, delta_time * (120 / 4) * 1000);
+            }, delta_time * (baseFps / 4) * 1000);
 
-        }, delta_time * (120 / 4) * 1000);
+        }, delta_time * (baseFps / 4) * 1000);
     }
 }
 

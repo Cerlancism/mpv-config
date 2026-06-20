@@ -2,7 +2,8 @@
 
 require('./polyfills')
 
-var config = require('./config')
+var config = require('./config');
+var contentPropertyExtractor = require('./contentPropertyExtractor')
 
 /**
  * @param {any} str
@@ -99,15 +100,35 @@ function expectDash(name)
     return name
 }
 
-
 /**
- * 
+ * @param {string} path
  * @param {string} name 
  */
-module.exports = function (name)
+module.exports = function (path, name)
 {
     try
     {
+        print("path: " + path + " name: " + name)
+        if (path && path.includes("Regular")) {
+            print("Regular input candidate")
+            var regularContentId = contentPropertyExtractor.extractContentIdOrFallback(name)
+            if (!regularContentId) {
+                print("Regular input empty")
+                return name
+            }
+            print("Regular input cleaned: " + regularContentId)
+
+            var titlePrefix = "[Regular]"
+            var title = String(mp.get_property("title"))
+            
+            if (title && !title.includes(titlePrefix)) {
+                mp.set_property("title", titlePrefix + " " + title)
+            }
+
+            return regularContentId
+        }
+
+
         if (!isCleanseTarget(name))
         {
             return name

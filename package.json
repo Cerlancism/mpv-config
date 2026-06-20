@@ -5,5 +5,8 @@
   "author": "Cerlancism",
   "dependencies": {
     "@types/mpv": "github:Cerlancism/mpv.d.ts"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
   }
 }
