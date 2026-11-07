@@ -6,7 +6,8 @@ var shader_path = "~~/shaders/limited_to_full.glsl";
 
 function toggle_shader() {
     // Get current shader list
-    var current_shaders = mp.get_property_native("glsl-shaders", []);
+
+    var current_shaders = /** @type {any[]} */ (mp.get_property_native("glsl-shaders", []));
 
     // Check if shader is already in the list
     var shader_index = -1;

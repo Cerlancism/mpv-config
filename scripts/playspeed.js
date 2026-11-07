@@ -23,6 +23,22 @@ var selected_speed = 1;
 
 var autosync_target = 120;
 
+// ===== Drift-converging restore tunables =====
+// During the gradual restore (audio-on path) we ramp the speed down CONTINUOUSLY
+// toward 1x: every drift_poll_ms we lower the base speed by drift_step and bias
+// it by the measured A/V drift (avsync = audio_pts - video_pts), so audio and
+// video converge while the speed glides down -- no discrete level holds.
+// Total restore budget ~1s: glide 4x->1x (~0.5s) + finish tail (~0.5s).
+var drift_poll_ms = 100;       // ramp tick: how often we lower speed & re-correct
+var drift_step = 0.6;          // speed reduction per tick: (4-1)/0.6 = 5 ticks = 0.5s
+var drift_gain = 1.0;          // speed offset per second of drift (speed += gain*avsync)
+var drift_max_offset = 0.5;    // clamp on the drift offset, so we never overshoot wildly
+var drift_eps = 0.010;         // |avsync| (s) treated as settled at the 1x endpoint
+var drift_fps_floor = 2.5;     // below this ramp speed, drop the fps decimation:
+                               // it starves the renderer (waits on sparse frames)
+                               // and saves little GPU once speed is this low.
+var finish_stage_ms = 167;     // each of the 3 finish-tail stages (~0.5s total)
+
 // ===== Init properties =====
 var args_vf = mp.get_property_native("vf", null);
 var opt_d3d11_sync = mp.get_opt("d3d11_sync");
@@ -32,6 +48,7 @@ var prop_autosync = mp.get_property("autosync", null)
 var speed_timer = null;
 var vf_restore_timer = null;
 var is_restoring_speed = false;
+var ramp_decimating = false;   // true while the ramp still has the fps filter in
 var vf_at_keydown = null;
 
 var baseFps = 120
@@ -124,20 +141,13 @@ function fps_for_speed(speed, slowing) {
     }
 }
 
-function fps_conserved() {
-    return "30000/1001";
-}
-
 function restore_original_vf_exact() {
     set_vf(args_vf);
     vf_at_keydown = null;
 }
 
 // ========= Gradual restore =========
-/**
- * @param {boolean} [instant]
- */
-function gradually_restore_speed(instant) {
+function gradually_restore_speed() {
     var current_speed;
     try {
         current_speed = mp.get_property_number("speed");
@@ -145,17 +155,11 @@ function gradually_restore_speed(instant) {
         current_speed = 1;
     }
 
-    if (instant || selected_speed === fast_speed) {
-        var vf_now0 = get_vf();
-        vf_now0 = upsert_fps(vf_now0, fps_conserved(), current_speed, true);
-        set_vf(vf_now0);
-        current_speed = 1;
-        set_property_number_logged("speed", current_speed);
-    }
-
     set_property_logged("autosync", autosync_target)
 
     if (current_speed > 1 && (selected_speed > fast_speed)) {
+        // Audio-OFF path (e.g. 20x): avsync is unavailable (no audio clock), so
+        // just ramp speed down and let autosync settle the residual on re-enable.
         print("gradually slow down")
         var slower_speed_candidate = current_speed / 2;
         var slower_speed = slower_speed_candidate < 1 ? 1 : slower_speed_candidate;
@@ -173,26 +177,93 @@ function gradually_restore_speed(instant) {
         speed_timer = setTimeout(function () {
             gradually_restore_speed();
         }, delta_time * (baseFps / 12) * 1000);
+    } else if (current_speed > 1) {
+        // Audio-ON path (e.g. 4x): continuously ramp the speed down to 1x while
+        // biasing by the A/V drift, so audio and video converge as we glide down.
+        // keydown left the fps filter in, so start in the decimating state.
+        set_property_logged("video-sync", "audio");
+        ramp_decimating = true;
+        ramp_down(current_speed);
     } else {
+        finish_restore();
+    }
+}
+
+// Continuous ramp: each drift_poll_ms, lower the base speed by drift_step toward
+// 1x and add a drift offset (drift_gain*avsync, clamped). The applied speed is
+// base + offset; the base monotonically decreases until it reaches 1x, then the
+// final settle/restore runs once the residual drift is small.
+/**
+ * @param {number} base
+ */
+function ramp_down(base) {
+    if (is_restoring_speed === false) return; // a new keydown took over
+
+    var avsync = null;
+    try { avsync = mp.get_property_number("avsync"); } catch (e) { }
+
+    // Drift offset: avsync = audio - video, so positive drift means video is
+    // behind -> speed it up to catch the audio.
+    var offset = drift_gain * (avsync || 0);
+    if (offset > drift_max_offset) offset = drift_max_offset;
+    if (offset < -drift_max_offset) offset = -drift_max_offset;
+
+    if (base <= 1) {
+        // Endpoint: hold 1x (+offset) until the residual drift settles, then end.
+        if (avsync == null || Math.abs(avsync) < drift_eps) {
+            set_property_number_logged("speed", 1);
+            finish_restore();
+            return;
+        }
+        set_property_number_logged("speed", 1 + offset);
+        if (speed_timer) clearTimeout(speed_timer);
+        speed_timer = setTimeout(function () { ramp_down(1); }, drift_poll_ms);
+        return;
+    }
+
+    set_property_number_logged("speed", base + offset);
+
+    // Decimate frames only while fast enough for it to pay off. Below the floor
+    // the fps filter starves the renderer (sparse frames -> visible wait), so we
+    // drop back to the original chain ONCE for the rest of the glide.
+    if (base > drift_fps_floor) {
+        var vf_now = get_vf();
+        vf_now = upsert_fps(vf_now, fps_for_speed(base, true), base, true);
+        set_vf(vf_now);
+        ramp_decimating = true;
+    } else if (ramp_decimating) {
+        restore_original_vf_exact();
+        ramp_decimating = false;
+    }
+
+    var next_base = base - drift_step;
+    if (next_base < 1) next_base = 1;
+
+    if (speed_timer) clearTimeout(speed_timer);
+    speed_timer = setTimeout(function () { ramp_down(next_base); }, drift_poll_ms);
+}
+
+// Final restore tail: re-enable audio if it was off, restore autosync + the
+// exact original filter chain, and clear the restoring flag.
+function finish_restore() {
+    vf_restore_timer = setTimeout(function () {
+        is_restoring_speed = false;
+        set_property_logged("video-sync", "audio");
+
         vf_restore_timer = setTimeout(function () {
-            is_restoring_speed = false;
-            set_property_logged("video-sync", "audio");
+            var current_prop_audio = mp.get_property("audio", null);
+            if (prop_audio !== current_prop_audio) {
+                set_property_logged("audio", prop_audio);
+            }
 
             vf_restore_timer = setTimeout(function () {
-                var current_prop_audio = mp.get_property("audio", null);
-                if (prop_audio !== current_prop_audio) {
-                    set_property_logged("audio", prop_audio);
-                }
+                set_property_logged("autosync", prop_autosync)
+                restore_original_vf_exact();
+            }, finish_stage_ms);
 
-                vf_restore_timer = setTimeout(function () {
-                    set_property_logged("autosync", prop_autosync)
-                    restore_original_vf_exact();
-                }, delta_time * (baseFps) * 1000);
+        }, finish_stage_ms);
 
-            }, delta_time * (baseFps / 4) * 1000);
-
-        }, delta_time * (baseFps / 4) * 1000);
-    }
+    }, finish_stage_ms);
 }
 
 // ========= Key handling =========
@@ -214,17 +285,17 @@ function handle_key(event, speed) {
             prop_audio = prop_audio_current;
         }
 
+        selected_speed = speed;
+
         vf_at_keydown = get_vf();
 
         var vf_now = upsert_fps(vf_at_keydown, fps_for_speed(speed, false), speed, false);
         set_vf(vf_now);
 
         if (speed === fast_speed2) {
-            selected_speed = fast_speed2;
-            set_property_logged("video-sync", "display-desync");
+            // Too fast to pitch-correct: disable audio (avsync unavailable, so
+            // the restore uses the autosync-only ramp, not drift convergence).
             set_property_logged("audio", "no");
-        } else if (speed === fast_speed) {
-            selected_speed = fast_speed;
         }
 
         set_property_logged("video-sync", "display-desync");
@@ -234,7 +305,7 @@ function handle_key(event, speed) {
     } else if (event === "up") {
         is_restoring_speed = true;
         setTimeout(function () {
-            gradually_restore_speed(false);
+            gradually_restore_speed();
         }, delta_time * 4 * 1000);
     }
 }
